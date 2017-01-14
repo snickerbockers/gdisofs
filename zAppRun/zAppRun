@@ -1,0 +1,218 @@
+#!/bin/bash
+
+# by probono at myrealbox dot com
+# thanks to bfree
+# 2005-09-22 converted to use fusecram by dmiceman@mail.ru
+# 2005-10-29 added support for fuseiso by dmiceman@mail.ru
+# GPL
+
+export PATH=/sbin:$PATH # Fedora needs this
+
+#
+# ok we need dialogs now
+#
+if [ -z "$DIALOG" ] ; then
+# Determine which dialog to use in which situation:
+# Xdialog (in all other cases)
+export DIALOG=Xdialog
+# kdialog (in case there is no console available and we are running KDE)
+pidof kdesktop >/dev/null && export DIALOG=kdialog
+pidof gnome-panel > /dev/null && export DIALOG=zenity 
+# dialog (in case there is a console available)
+GUIMODE=$(tty)
+( echo $GUIMODE | grep /dev/tty[:digit:] >/dev/null ) && export DIALOG=dialog
+fi
+
+# Setup defaults for whatever dialog we are using
+case $DIALOG in
+ kdialog)
+ DIALOG_OPTIONS=" --caption klik" ;
+ KLIKDIR=":klikdir" ;;
+ Xdialog|dialog)
+ DIALOG_H=12
+ DIALOG_W=60
+ DIALOG_OPTIONS=" $DIALOG_H $DIALOG_W" ;
+ KLIKDIR="~" ;;
+esac
+
+derror(){
+ case $DIALOG in
+ zenity)
+ $DIALOG --error --text "$1" --title="klik"
+ ;;
+ kdialog)
+ $DIALOG --error "$1" $DIALOG_OPTIONS 
+ ;;
+ Xdialog|dialog)
+ $DIALOG --msgbox "ERROR: $1" $DIALOG_OPTIONS 
+ ;;
+ esac
+}
+
+function check_fstab() {
+    # check fstab and warn if neccessary entries are not there
+    # better use /media/klik according to FSH?
+    if [ -z "$(cat /etc/fstab | grep app/7)" ]
+    then
+    derror "Your /etc/fstab is not yet prepared for mounting .cmg images. 
+  As root, please make /tmp/app writeable and add the following lines:
+  
+  ################################################################
+/tmp/app/1/image /tmp/app/1 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/2/image /tmp/app/2 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/3/image /tmp/app/3 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/4/image /tmp/app/4 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/5/image /tmp/app/5 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/6/image /tmp/app/6 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+/tmp/app/7/image /tmp/app/7 cramfs,iso9660 user,noauto,ro,loop,exec 0 0
+################################################################"
+    exit 1
+    fi
+}
+
+# rewrite cmdline to use absolute instead of relative paths, thanks bfree
+NEWCMD=$(perl -e '$newcmd=shift(@ARGV);foreach $arg (@ARGV){ @part=split(/\=/,$arg); foreach $part (@part){ (-e "$ENV{PWD}/$part") && ($part="$ENV{PWD}/$part");}$newcmd.=" ".join ("=",@part);} print "$newcmd";' $@)
+set -- $NEWCMD
+
+# if no arguments are passed and 
+# there is a .cmg in the same directory as this
+# script, then use the .cmg
+DIRNAME=$(dirname $0)
+if [ -z $1 ]
+then
+  CMG=$(find "$DIRNAME" -iname '*.cmg'|head -n 1) || exit 1
+  echo "Found $CMG, using it"
+else
+  CMG="$1"
+  shift
+fi
+
+# make path to CMG absolute, thanks bfree
+case $CMG in
+/*) ;; 
+*) CMG=$(pwd)/$CMG ;; 
+esac
+
+# determine which filesystem is used as .cmg
+file "$CMG" | grep ": data" >/dev/null && FS=squash # who knows a better way to recognize it?
+file "$CMG" | grep "Compressed ROM" >/dev/null && FS=cram
+file "$CMG" | grep "ISO 9660" >/dev/null && FS=iso
+
+# sometimes file does not recognize iso9660 images, try hard way
+if [ -z $FS ] ; then
+    dd if="$CMG" skip=32769 bs=1 count=5 2> /dev/null | grep CD001 >/dev/null && FS=iso
+fi
+
+if [ -n "$FS" ]
+then
+  NUMBERS="7 6 5 4 3 2 1"
+  for NUMBER in $NUMBERS
+    do
+    [ -e "/tmp/app/$NUMBER" ] || MNTNUM=$NUMBER
+  done
+  case $FS in
+    squash) 
+        MOUNT=/tmp/squash/$MNTNUM 
+        mkdir -p $MOUNT || exit 1
+        ln -s $CMG $MOUNT/image || exit 1
+        mount $MOUNT || derror "Unable to mount $MOUNT"
+        ;;
+    cram)
+        FUSECRAM=`which fusecram 2> /dev/null`
+        MOUNT=/tmp/app/$MNTNUM
+        mkdir -p $MOUNT || exit 1
+        if [ -z "$FUSECRAM" ] ; then
+            check_fstab
+            ln -s $CMG $MOUNT/image || exit 1
+            mount $MOUNT/image || derror "Unable to mount $MOUNT"
+        else
+            # using fusecram -- dmiceman
+            $FUSECRAM $CMG $MOUNT || derror "Unable to mount $MOUNT: $?"
+        fi
+        ;;
+    iso)
+        FUSEISO=`which fuseiso 2> /dev/null`
+        MOUNT=/tmp/app/$MNTNUM
+        mkdir -p $MOUNT || exit 1
+        if [ -z "$FUSEISO" ] ; then
+            check_fstab
+            ln -s $CMG $MOUNT/image || exit 1
+            mount $MOUNT/image || derror "Unable to mount $MOUNT"
+        else
+            # using fuseiso -- dmiceman
+            $FUSEISO $CMG $MOUNT || derror "Unable to mount $MOUNT: $?"
+        fi
+        ;;
+    *) 
+        MOUNT=/tmp/app/$MNTNUM 
+        mkdir -p $MOUNT || exit 1
+        ln -s $CMG $MOUNT/image || exit 1
+        mount $MOUNT || derror "Unable to mount $MOUNT"
+        ;;
+  esac
+else
+  # NOTE: exit now cause our cmg isn't mounted
+  derror "$CMG does not appear to be either a squashfs, iso9660 or a cramfs file"
+  exit 1
+fi
+    
+  #
+  # execute the wrapper
+  # the wrapper should take care to keep running until its app closes
+  #
+  
+  # we need this so that on the cmdline, pipes etc work
+  CMDLINE="yes"
+  ( tty | grep ^/dev/tty >/dev/null ) && CMDLINE=""
+  ( tty | grep ^/dev/pts >/dev/null ) && CMDLINE=""
+  if [ "$CMDLINE" = "yes" ] ; then
+    RESULT=$($MOUNT/wrapper $@ 2>&1) || derror "$RESULT" 
+  else
+    $MOUNT/wrapper $@
+  fi
+  
+  # kill all child processes
+  # kill $(pidof -x -o %PPID $!) # 2>/dev/null
+  
+  # unmount and clean up
+  if [ -n "$FUSECRAM" -o -n "$FUSEISO" ] ; then
+    # umount want not to umount FUSE mounts -- dmiceman
+    fusermount -u $MOUNT
+    rm -r $MOUNT/
+  else
+    umount $MOUNT
+    rm -f $MOUNT/image
+    rm -r $MOUNT/
+  fi
+	
+	##################
+	# update klik menu
+	
+	CMGDIR=$(dirname $CMG)
+	[ x"$KDEHOME" = x ] && KDEHOME=$HOME/.kde
+
+	# find cmg files
+	CMGFILES=$(find $CMGDIR/*.cmg 2>/dev/null)
+	
+	# remove old menu entries
+	rm -rf ${KDEHOME}/share/applnk/klik/*.cmg.desktop
+	
+	# create new menu entries
+	for CMGFILE in $CMGFILES
+	do
+	#echo $CMGFILE
+	BASENAME=$(basename "$CMGFILE")
+	APPNAME=$(echo $BASENAME | sed 's/.cmg//g' | cut -d _ -f 1)
+	firstchar=${APPNAME:0:1}   # First character.
+	restchar=${APPNAME:1}       # Rest of string(s).
+	firstchar=$(echo "$firstchar" | tr a-z A-Z)
+	APPNAME=$firstchar$restchar
+	cat > $KDEHOME/share/applnk/klik/$BASENAME.desktop <<EOmooF
+	[Desktop Entry]
+	Encoding=UTF-8
+	Type=Application
+	Exec=$HOME/.zAppRun $CMGFILE
+	Icon=
+	Name=$APPNAME
+EOmooF
+	done
