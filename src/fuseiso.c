@@ -2,6 +2,9 @@
  *   Copyright (C) 2005, 2006 by Dmitry Morozhnikov   *
  *   dmiceman@mail.ru   *
  *                                                                         *
+ *   Copyright (C) 2017 snickerbockers                                     *
+ *   chimerasaurusrex@gmail.com                                            *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -45,6 +48,7 @@
 #include <locale.h>
 #include <langinfo.h>
 
+#include "config.h"
 #include "isofs.h"
 
 #ifdef __GNUC__
@@ -296,7 +300,7 @@ void usage(const char* prog) {
         "    -d                 -- run in foreground and print debug information\n"
         "    -s                 -- run single-threaded\n"
         "\nPlease consult with FUSE ducumentation for more information\n",
-        VERSION, 
+        VERSION_STR,
         prog);
 };
 
