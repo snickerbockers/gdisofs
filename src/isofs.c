@@ -2,6 +2,9 @@
  *   Copyright (C) 2005, 2006 by Dmitry Morozhnikov   *
  *   dmiceman@mail.ru   *
  *                                                                         *
+ *   Copyright (C) 2017 snickerbockers                                     *
+ *   chimerasaurusrex@gmail.com                                            *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -58,12 +61,12 @@ guint local_g_strv_length (gchar **str_array) {
     return i;
 };
 
-int isofs_real_preinit( char* imagefile, int fd) {
+int isofs_real_preinit( char* imagefile, FILE *in_stream) {
     
     memset(& context, 0, sizeof(isofs_context));
     
     context.imagefile = imagefile;
-    context.fd = fd;
+    context.in_stream = in_stream;
     
     // trying to read all volume descriptors
     struct iso_volume_descriptor *vd = 
@@ -92,14 +95,15 @@ int isofs_real_preinit( char* imagefile, int fd) {
     // try to find CD001 identifier
     int i;
     for(i = 0; i < 4; i++) {
-        if(lseek(fd, iso_offsets[i], SEEK_SET) == -1) {
-            perror("can`t lseek() to next possible data start position; is it really supported file?");
+        if(fseek(in_stream, iso_offsets[i], SEEK_SET) == -1) {
+            perror("can`t fseek() to next possible data start position; is it really supported file?");
             exit(EIO);
         };
-        ssize_t size = read(fd, vd, sizeof(struct iso_volume_descriptor));
-        if(size != sizeof(struct iso_volume_descriptor)) {
-            fprintf(stderr, "only %d bytes read from position %d, %d required; is it really supported file?\n", 
-                size, iso_offsets[i], sizeof(struct iso_volume_descriptor));
+        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1, in_stream);
+        if(count != 1) {
+            fprintf(stderr, "failed to read %d bytes from position %d; "
+                    "is it really supported file?\n",
+                    sizeof(struct iso_volume_descriptor), iso_offsets[i]);
             exit(EIO);
         };
         char *vd_id = (char *) vd->id;
@@ -142,15 +146,15 @@ int isofs_real_preinit( char* imagefile, int fd) {
 /*    printf("CD001 found at %d, bs %d, boff %d, ds %d\n", 
         context.id_offset, context.block_size, context.block_offset, context.data_size);*/
     while(1) {
-        if(lseek(fd, context.block_size * (16 + vd_num) + 
+        if(fseek(in_stream, context.block_size * (16 + vd_num) + 
             context.block_offset + context.file_offset, SEEK_SET) == -1) {
             perror("can`t lseek() to next volume descriptor");
             exit(EIO);
         };
-        ssize_t size = read(fd, vd, sizeof(struct iso_volume_descriptor));
-        if(size != sizeof(struct iso_volume_descriptor)) {
-            fprintf(stderr, "only %d bytes read from volume descriptor %d, %d required\n", 
-                size, vd_num, sizeof(struct iso_volume_descriptor));
+        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1, in_stream);
+        if(count != 1) {
+            fprintf(stderr, "Unable to read %d bytes from volume descriptor %d\n",
+                sizeof(struct iso_volume_descriptor), vd_num);
             exit(EIO);
         };
         
@@ -472,12 +476,12 @@ static int isofs_read_raw_block(int block, char *buf) {
         perror("isofs_read_raw_block: can`l lock fd_mutex");
         return -err;
     };
-    if(lseek(context.fd, off, SEEK_SET) == -1) {
-        perror("isofs_read_raw_block: can`t lseek()");
+    if(fseek(context.in_stream, off, SEEK_SET) == -1) {
+        perror("isofs_read_raw_block: can`t fseek()");
         pthread_mutex_unlock(& fd_mutex);
         return -EIO;
     };
-    size_t len = read(context.fd, buf, context.data_size);
+    size_t len = fread(buf, 1, context.data_size, context.in_stream);
     if(len != context.data_size) {
         fprintf(stderr, "isofs_read_raw_block: can`t read full block, read only %d bytes from offset %d, %d required; errno %d, message %s\n", 
             len, (int) off, context.data_size, errno, strerror(errno));
@@ -1679,14 +1683,14 @@ static int isofs_real_read_zf(isofs_inode *inode, char *out_buf, size_t size, of
                 free(ubuf);
                 return -err;
             };
-            if(lseek(context.fd, image_off, SEEK_SET) == -1) {
+            if(fseek(context.in_stream, image_off, SEEK_SET) == -1) {
                 perror("isofs_real_read_zf: can`t lseek()");
                 pthread_mutex_unlock(& fd_mutex);
                 free(cbuf);
                 free(ubuf);
                 return -EIO;
             };
-            size_t len = read(context.fd, cbuf, block_size);
+            size_t len = fread(cbuf, 1, block_size, context.in_stream);
             if(len != block_size) {
                 fprintf(stderr, "isofs_real_read_zf: can`t read full block, errno %d, message %s\n", 
                     errno, strerror(errno));

@@ -2,6 +2,9 @@
  *   Copyright (C) 2005, 2006 by Dmitry Morozhnikov   *
  *   dmiceman@mail.ru   *
  *                                                                         *
+ *   Copyright (C) 2017 snickerbockers                                     *
+ *   chimerasaurusrex@gmail.com                                            *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -30,7 +33,7 @@ typedef int (*isofs_dir_fill_t) (void *buf, const char *name,
 
 typedef struct _isofs_context {
     char *imagefile;
-    int fd;
+    FILE *in_stream;
     int pd_have_rr; // 1 if primary descriptor have hierarchy with rrip extension
     struct iso_primary_descriptor pd;
     int supplementary; // 1 if supplementary descriptor found and in effect
@@ -150,7 +153,7 @@ static inline unsigned int isonum_733(char *p)
 #endif
 }
 
-int isofs_real_preinit(char* imagefile, int fd);
+int isofs_real_preinit(char* gdi_path, FILE *in_stream);
 void* isofs_real_init();
 
 int isofs_real_opendir(const char *path);

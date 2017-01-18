@@ -59,7 +59,7 @@
 
 static char *imagefile = NULL;
 static char *mount_point = NULL;
-static int image_fd = -1;
+static FILE *image_stream = NULL;
 
 int maintain_mount_point;
 int maintain_mtab;
@@ -346,8 +346,8 @@ int main(int argc, char *argv[])
     
     imagefile = normalize_name(argv[optind]);
     
-    image_fd = open(imagefile, O_RDONLY);
-    if(image_fd == -1) {
+    image_stream = fopen(imagefile, "rb");
+    if(!image_stream) {
         fprintf(stderr, "Supplied image file name: \"%s\"\n", imagefile);
         perror("Can`t open image file");
         exit(EXIT_FAILURE);
@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
     };
     
     // will exit in case of failure
-    rc = isofs_real_preinit(imagefile, image_fd);
+    rc = isofs_real_preinit(imagefile, image_stream);
     
     return fuse_main(nargc, nargv, &isofs_oper);
 };
