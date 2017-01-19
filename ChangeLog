@@ -1,3 +1,6 @@
+2017-01-18
+	* all: gdiso fs fork.  Sega Dreamcast .gdi (GD-ROM) image support.
+
 2007-07-08
 		* all: Patch by Ryan Thomas to fix race condition with ZISO files. Patch by Chandan Dutta Chowdhury to fix compilation on RHEL3/RHEL4. Thanks!
 

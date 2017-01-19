@@ -1,3 +1,6 @@
+2017-01-18
+        * gdisofs fork adds support for Sega Dreamcast gdi images
+
 2006-09-27
         * Added support to maintain ~/.mtab.fuseiso, maintain mount point directory. Added support for iocharset.
 
