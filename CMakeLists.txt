@@ -33,6 +33,9 @@ configure_file (
 set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64  -I/usr/include/fuse -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -Werror -Wall")
 
 set(dc_fs_sources   "${PROJECT_SOURCE_DIR}/src/gdi_file.h"
+                    "${PROJECT_SOURCE_DIR}/src/isofs.h"
+                    "${PROJECT_SOURCE_DIR}/linux/iso_fs.h"
+                    "${PROJECT_SOURCE_DIR}/linux/rock.h"
                     "${PROJECT_SOURCE_DIR}/src/fuseiso.c"
                     "${PROJECT_SOURCE_DIR}/src/isofs.c"
                     "${PROJECT_SOURCE_DIR}/src/gdi_file.c")
