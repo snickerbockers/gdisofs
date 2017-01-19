@@ -22,7 +22,7 @@
  ***************************************************************************/
 
 // for struct tm->tm_gmtoff
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 
 #include <err.h>
 #include <stdio.h>
@@ -39,6 +39,7 @@
 #include <sys/statfs.h>
 #include <iconv.h>
 
+#include "gdi_file.h"
 #include "isofs.h"
 
 static isofs_context context;
@@ -124,7 +125,7 @@ int isofs_real_preinit(char const *imagefile) {
         ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor),
                               1, context.tracks[GDI_DATA_TRACK]);
         if(count != 1) {
-            fprintf(stderr, "failed to read %d bytes from position %d; "
+            fprintf(stderr, "failed to read %lu bytes from position %d; "
                     "is it really supported file?\n",
                     sizeof(struct iso_volume_descriptor), iso_offsets[i]);
             exit(EIO);
@@ -178,7 +179,7 @@ int isofs_real_preinit(char const *imagefile) {
         ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1,
                               context.tracks[GDI_DATA_TRACK]);
         if(count != 1) {
-            fprintf(stderr, "Unable to read %d bytes from volume descriptor %d\n",
+            fprintf(stderr, "Unable to read %lu bytes from volume descriptor %d\n",
                 sizeof(struct iso_volume_descriptor), vd_num);
             exit(EIO);
         };
@@ -207,7 +208,7 @@ int isofs_real_preinit(char const *imagefile) {
                         context.data_size = isonum_723(context.pd.logical_block_size);
                         
                         if(!context.block_size) {
-                            fprintf(stderr, "init: wrong block data size %d, using default 2048\n", context.data_size);
+                            fprintf(stderr, "init: wrong block data size %d, using default 2048\n", (int)context.data_size);
                             context.data_size = 2048;
                         };
                         
@@ -353,7 +354,7 @@ void* isofs_real_init() {
     
     if(context.block_size != 2048) {
         // report unusual data block size
-        printf("Data block size: %d\n", context.block_size);
+        printf("Data block size: %d\n", (int)context.block_size);
     };
     
     char buf[129];
@@ -395,19 +396,22 @@ static int isofs_check_rr(struct iso_directory_record *root_record) {
     size_t pad_len = ((name_len & 1) ? 0 : 1); // padding byte if name_len is even
     size_t sa_len = record_length - name_len - sizeof(struct iso_directory_record) - pad_len;
     if(record_length < sizeof(struct iso_directory_record)) {
-        fprintf(stderr, "check_rr: directory record length too small: %d\n", record_length);
+        fprintf(stderr, "check_rr: directory record length too small: %d\n",
+                (int)record_length);
         free(buf);
         return -EIO;
     };
     if(name_len != 1) {
-        fprintf(stderr, "check_rr: file name length too big for . record: %d\n", name_len);
+        fprintf(stderr, "check_rr: file name length too big for . record: %d\n",
+                (int)name_len);
         free(buf);
         return -EIO;
     };
     if(sa_len < 0) {
         // probably something wrong with name_len
-        fprintf(stderr, "check_rr: wrong name_len in directory entry: %d, record_length %d\n", 
-            name_len, record_length);
+        fprintf(stderr, "check_rr: wrong name_len in directory entry: %d, "
+                "record_length %d\n",
+                (int)name_len, (int)record_length);
         free(buf);
         return -EIO;
     };
@@ -510,8 +514,11 @@ static int isofs_read_raw_block(int block, char *buf) {
     size_t len = fread(buf, 1, context.data_size,
                        context.tracks[GDI_DATA_TRACK]);
     if(len != context.data_size) {
-        fprintf(stderr, "isofs_read_raw_block: can`t read full block, read only %d bytes from offset %d, %d required; errno %d, message %s\n", 
-            len, (int) off, context.data_size, errno, strerror(errno));
+        fprintf(stderr, "isofs_read_raw_block: can`t read full block, "
+                "read only %d bytes from offset %d, %d required; errno %d, "
+                "message %s\n",
+                (int)len, (int)off, (int)context.data_size, errno,
+                strerror(errno));
         fprintf(stderr, "isofs_read_raw_block: huh? reading zeros beyond file end? someone want to save a penny?\n");
         memset(buf + len, 0, context.data_size - len);
         // pthread_mutex_unlock(& fd_mutex);
@@ -1088,7 +1095,7 @@ static int isofs_parse_sa(isofs_inode *inode, char *sa, size_t sa_len) {
                         if(sue_len - 5 + inode->nm_len > NAME_MAX - 1) {
                             fprintf(stderr, 
                                 "parse_sa: too long NM entry: %d\n", 
-                                sue_len - 5 + inode->nm_len);
+                                    (int)(sue_len - 5 + inode->nm_len));
                         } else if(inode->NM) {
                             fprintf(stderr, 
                                 "parse_sa: NM entry already in effect, sue_len %d, sue_version %d\n", 
@@ -1151,19 +1158,22 @@ static int isofs_parse_sa(isofs_inode *inode, char *sa, size_t sa_len) {
         /*            printf("boff %d, record length %d, name_len %d, pad_len %d, sa_len %d\n", 
                         (int) boff, record_length, name_len, pad_len, sa_len);*/
                     if(record_length < sizeof(struct iso_directory_record)) {
-                        fprintf(stderr, "parse_sa: CL entry: directory record length too small: %d\n", record_length);
+                        fprintf(stderr, "parse_sa: CL entry: directory record "
+                                "length too small: %d\n", (int)record_length);
                         free(buf);
                         return -EIO;
                     };
                     if(name_len != 1) {
-                        fprintf(stderr, "parse_sa: file name length too big for . record: %d\n", name_len);
+                        fprintf(stderr, "parse_sa: file name length too big "
+                                "for . record: %d\n", (int)name_len);
                         free(buf);
                         return -EIO;
                     };
                     if(sa_len < 0) {
                         // probably something wrong with name_len
-                        fprintf(stderr, "parse_sa: CL record: wrong name_len in directory entry: %d, record_length %d\n", 
-                            name_len, record_length);
+                        fprintf(stderr, "parse_sa: CL record: wrong name_len "
+                                "in directory entry: %d, record_length %d\n",
+                                (int)name_len, (int)record_length);
                         free(buf);
                         return -EIO;
                     };
@@ -1455,20 +1465,23 @@ int isofs_real_readdir(const char *path, void *filler_buf, isofs_dir_fill_t fill
                     boff = 0;
                     break;
                 } else {
-                    fprintf(stderr, "readdir: directory record length too small: %d\n", record_length);
+                    fprintf(stderr, "readdir: directory record length too "
+                            "small: %d\n", (int)record_length);
                     free(buf);
                     return -EIO;
                 };
             };
             if(name_len > NAME_MAX - 1) {
-                fprintf(stderr, "readdir: file name length too big: %d\n", name_len);
+                fprintf(stderr, "readdir: file name length too big: %d\n",
+                        (int)name_len);
                 free(buf);
                 return -EIO;
             };
             if(sa_len < 0) {
                 // probably something wrong with name_len
-                fprintf(stderr, "readdir: wrong name_len in directory entry: %d, record_length %d\n", 
-                    name_len, record_length);
+                fprintf(stderr, "readdir: wrong name_len in directory entry: "
+                        "%d, record_length %d\n",
+                        (int)name_len, (int)record_length);
                 free(buf);
                 return -EIO;
             };

@@ -38,4 +38,6 @@ typedef struct _gdi_info {
     gdi_track *tracks;
 } gdi_info;
 
+void parse_gdi(gdi_info *outp, char const *path);
+
 #endif

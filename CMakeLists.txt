@@ -30,7 +30,7 @@ configure_file (
   )
 
 # TODO: figure out how to run `pkg-config --cflags fuse glib-2.0` from cmake
-set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64  -I/usr/include/fuse -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include  -Wall")
+set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64  -I/usr/include/fuse -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -Werror -Wall")
 
 set(dc_fs_sources   "${PROJECT_SOURCE_DIR}/src/gdi_file.h"
                     "${PROJECT_SOURCE_DIR}/src/fuseiso.c"
