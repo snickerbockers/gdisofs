@@ -21,8 +21,8 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-#define VERSION_MAJOR @dc_fs_VERSION_MAJOR@
-#define VERSION_MINOR @dc_fs_VERSION_MINOR@
+#define VERSION_MAJOR @gdisofs_VERSION_MAJOR@
+#define VERSION_MINOR @gdisofs_VERSION_MINOR@
 
 #define FRAK(tok) #tok
 #define STRINGIFY(tok) FRAK(tok)
