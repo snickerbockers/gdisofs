@@ -24,6 +24,7 @@
 // for struct tm->tm_gmtoff
 #define _BSD_SOURCE
 
+#include <err.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -61,13 +62,32 @@ guint local_g_strv_length (gchar **str_array) {
     return i;
 };
 
-int isofs_real_preinit( char* imagefile, FILE *in_stream) {
+int isofs_real_preinit(char const *imagefile) {
     
     memset(& context, 0, sizeof(isofs_context));
     
     context.imagefile = imagefile;
-    context.in_stream = in_stream;
-    
+    parse_gdi(&context.gdi, imagefile);
+
+    /*
+     * 1 is added to n_tracks so that the indices
+     * can be equal to the track numbers
+     */
+    context.tracks = (FILE**)g_malloc(sizeof(FILE*) *
+                                      (context.gdi.n_tracks + 1));
+    memset(context.tracks, 0, sizeof(FILE*) * (context.gdi.n_tracks + 1));
+
+    if (context.gdi.n_tracks != 3)
+        errx(1, "Only 3-track GD-ROM images are supported\n");
+
+    context.tracks[GDI_DATA_TRACK] = fopen(
+        context.gdi.tracks[GDI_DATA_TRACK - 1].path, "rb");
+
+    if (!context.tracks[GDI_DATA_TRACK]) {
+        err(1, "Unable to open \"%s\"",
+            context.gdi.tracks[GDI_DATA_TRACK - 1].path);
+    }
+
     // trying to read all volume descriptors
     struct iso_volume_descriptor *vd = 
         (struct iso_volume_descriptor *) malloc(sizeof(struct iso_volume_descriptor));
@@ -95,11 +115,14 @@ int isofs_real_preinit( char* imagefile, FILE *in_stream) {
     // try to find CD001 identifier
     int i;
     for(i = 0; i < 4; i++) {
-        if(fseek(in_stream, iso_offsets[i], SEEK_SET) == -1) {
-            perror("can`t fseek() to next possible data start position; is it really supported file?");
+        if(fseek(context.tracks[GDI_DATA_TRACK],
+                 iso_offsets[i], SEEK_SET) == -1) {
+            perror("can`t fseek() to next possible data start position; is it "
+                   "really a supported file?");
             exit(EIO);
         };
-        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1, in_stream);
+        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor),
+                              1, context.tracks[GDI_DATA_TRACK]);
         if(count != 1) {
             fprintf(stderr, "failed to read %d bytes from position %d; "
                     "is it really supported file?\n",
@@ -146,12 +169,14 @@ int isofs_real_preinit( char* imagefile, FILE *in_stream) {
 /*    printf("CD001 found at %d, bs %d, boff %d, ds %d\n", 
         context.id_offset, context.block_size, context.block_offset, context.data_size);*/
     while(1) {
-        if(fseek(in_stream, context.block_size * (16 + vd_num) + 
-            context.block_offset + context.file_offset, SEEK_SET) == -1) {
+        if(fseek(context.tracks[GDI_DATA_TRACK],
+                 context.block_size * (16 + vd_num) +  context.block_offset +
+                 context.file_offset, SEEK_SET) == -1) {
             perror("can`t lseek() to next volume descriptor");
             exit(EIO);
         };
-        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1, in_stream);
+        ssize_t count = fread(vd, sizeof(struct iso_volume_descriptor), 1,
+                              context.tracks[GDI_DATA_TRACK]);
         if(count != 1) {
             fprintf(stderr, "Unable to read %d bytes from volume descriptor %d\n",
                 sizeof(struct iso_volume_descriptor), vd_num);
@@ -470,18 +495,20 @@ static isofs_inode *isofs_lookup(const char *path) {
 };
 
 static int isofs_read_raw_block(int block, char *buf) {
-    off_t off = block * context.block_size + context.block_offset + context.file_offset;
+    off_t off = (block - context.gdi.tracks[GDI_DATA_TRACK - 1].lba_start) * context.block_size + context.block_offset +
+        context.file_offset;
     if(pthread_mutex_lock(& fd_mutex)) {
         int err = errno;
         perror("isofs_read_raw_block: can`l lock fd_mutex");
         return -err;
     };
-    if(fseek(context.in_stream, off, SEEK_SET) == -1) {
+    if(fseek(context.tracks[GDI_DATA_TRACK], off, SEEK_SET) == -1) {
         perror("isofs_read_raw_block: can`t fseek()");
         pthread_mutex_unlock(& fd_mutex);
         return -EIO;
     };
-    size_t len = fread(buf, 1, context.data_size, context.in_stream);
+    size_t len = fread(buf, 1, context.data_size,
+                       context.tracks[GDI_DATA_TRACK]);
     if(len != context.data_size) {
         fprintf(stderr, "isofs_read_raw_block: can`t read full block, read only %d bytes from offset %d, %d required; errno %d, message %s\n", 
             len, (int) off, context.data_size, errno, strerror(errno));
@@ -1683,14 +1710,15 @@ static int isofs_real_read_zf(isofs_inode *inode, char *out_buf, size_t size, of
                 free(ubuf);
                 return -err;
             };
-            if(fseek(context.in_stream, image_off, SEEK_SET) == -1) {
+            if(fseek(context.tracks[GDI_DATA_TRACK],
+                     image_off, SEEK_SET) == -1) {
                 perror("isofs_real_read_zf: can`t lseek()");
                 pthread_mutex_unlock(& fd_mutex);
                 free(cbuf);
                 free(ubuf);
                 return -EIO;
             };
-            size_t len = fread(cbuf, 1, block_size, context.in_stream);
+            size_t len = fread(cbuf, 1, block_size, context.tracks[GDI_DATA_TRACK]);
             if(len != block_size) {
                 fprintf(stderr, "isofs_real_read_zf: can`t read full block, errno %d, message %s\n", 
                     errno, strerror(errno));

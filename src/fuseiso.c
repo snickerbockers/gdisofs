@@ -50,6 +50,7 @@
 
 #include "config.h"
 #include "isofs.h"
+#include "gdi_file.h"
 
 #ifdef __GNUC__
 # define UNUSED(x) x __attribute__((unused))
@@ -59,7 +60,6 @@
 
 static char *imagefile = NULL;
 static char *mount_point = NULL;
-static FILE *image_stream = NULL;
 
 int maintain_mount_point;
 int maintain_mtab;
@@ -345,14 +345,7 @@ int main(int argc, char *argv[])
     };
     
     imagefile = normalize_name(argv[optind]);
-    
-    image_stream = fopen(imagefile, "rb");
-    if(!image_stream) {
-        fprintf(stderr, "Supplied image file name: \"%s\"\n", imagefile);
-        perror("Can`t open image file");
-        exit(EXIT_FAILURE);
-    };
-    
+
     mount_point = normalize_name(argv[optind + 1]);
     
     // with space for possible -o use_ino arguments
@@ -419,7 +412,7 @@ int main(int argc, char *argv[])
     };
     
     // will exit in case of failure
-    rc = isofs_real_preinit(imagefile, image_stream);
+    rc = isofs_real_preinit(imagefile);
     
     return fuse_main(nargc, nargv, &isofs_oper);
 };

@@ -28,12 +28,18 @@
 #include <linux/iso_fs.h>
 #include <linux/rock.h>
 
+#include "gdi_file.h"
+
 typedef int (*isofs_dir_fill_t) (void *buf, const char *name,
     const struct stat *stat, off_t off);
 
 typedef struct _isofs_context {
-    char *imagefile;
-    FILE *in_stream;
+    char const *imagefile;
+    gdi_info gdi;
+
+    // 1 FILE* per track, unused tracks will be NULL
+    FILE **tracks;
+
     int pd_have_rr; // 1 if primary descriptor have hierarchy with rrip extension
     struct iso_primary_descriptor pd;
     int supplementary; // 1 if supplementary descriptor found and in effect
@@ -153,7 +159,7 @@ static inline unsigned int isonum_733(char *p)
 #endif
 }
 
-int isofs_real_preinit(char* gdi_path, FILE *in_stream);
+int isofs_real_preinit(char const *gdi_path);
 void* isofs_real_init();
 
 int isofs_real_opendir(const char *path);
