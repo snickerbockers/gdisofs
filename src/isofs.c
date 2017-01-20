@@ -78,11 +78,16 @@ int isofs_real_preinit(char const *imagefile) {
                                       (context.gdi.n_tracks + 1));
     memset(context.tracks, 0, sizeof(FILE*) * (context.gdi.n_tracks + 1));
 
-    if (context.gdi.n_tracks != 3)
-        errx(1, "Only 3-track GD-ROM images are supported\n");
+    if (context.gdi.n_tracks != 3 && context.gdi.n_tracks != 5)
+        errx(1, "Only 3-track and 5-track GD-ROM images are supported\n");
 
     context.tracks[GDI_DATA_TRACK] = fopen(
         context.gdi.tracks[GDI_DATA_TRACK - 1].path, "rb");
+
+    if (context.gdi.n_tracks == 5) {
+        context.tracks[GDI_SECONDARY_DATA_TRACK] = fopen(
+            context.gdi.tracks[GDI_SECONDARY_DATA_TRACK - 1].path, "rb");
+    }
 
     if (!context.tracks[GDI_DATA_TRACK]) {
         err(1, "Unable to open \"%s\"",
@@ -499,20 +504,28 @@ static isofs_inode *isofs_lookup(const char *path) {
 };
 
 static int isofs_read_raw_block(int block, char *buf) {
-    off_t off = (block - context.gdi.tracks[GDI_DATA_TRACK - 1].lba_start) * context.block_size + context.block_offset +
-        context.file_offset;
+    unsigned track_no = GDI_DATA_TRACK;
+
+    /* handle 5-track discs if necessary */
+    if ((context.gdi.n_tracks >= GDI_SECONDARY_DATA_TRACK) &&
+        context.tracks[GDI_SECONDARY_DATA_TRACK] &&
+        (block >= context.gdi.tracks[GDI_SECONDARY_DATA_TRACK - 1].lba_start))
+        track_no = GDI_SECONDARY_DATA_TRACK;
+
+    off_t off = (block - context.gdi.tracks[track_no - 1].lba_start) *
+        context.block_size + context.block_offset + context.file_offset;
     if(pthread_mutex_lock(& fd_mutex)) {
         int err = errno;
         perror("isofs_read_raw_block: can`l lock fd_mutex");
         return -err;
     };
-    if(fseek(context.tracks[GDI_DATA_TRACK], off, SEEK_SET) == -1) {
+    if(fseek(context.tracks[track_no], off, SEEK_SET) == -1) {
         perror("isofs_read_raw_block: can`t fseek()");
         pthread_mutex_unlock(& fd_mutex);
         return -EIO;
     };
     size_t len = fread(buf, 1, context.data_size,
-                       context.tracks[GDI_DATA_TRACK]);
+                       context.tracks[track_no]);
     if(len != context.data_size) {
         fprintf(stderr, "isofs_read_raw_block: can`t read full block, "
                 "read only %d bytes from offset %d, %d required; errno %d, "

@@ -25,6 +25,8 @@
 
 #define GDI_DATA_TRACK 3
 
+#define GDI_SECONDARY_DATA_TRACK 5
+
 typedef struct _gdi_track {
     char *path;
     unsigned lba_start;    // block address offset
