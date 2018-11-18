@@ -1,7 +1,7 @@
 ################################################################################
 #
 #    gdisofs - fuse module for mounting filesystems from Sega Dreamcast GD-ROMs
-#    Copyright (C) 2017 snickerbockers
+#    Copyright (C) 2017, 2018 snickerbockers
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -24,13 +24,17 @@ project(gdisofs)
 set(gdisofs_VERSION_MAJOR 0)
 set(gdisofs_VERSION_MINOR 1)
 
+find_package(PkgConfig REQUIRED)
+
+pkg_search_module(FUSE REQUIRED fuse)
+pkg_search_module(GLIB REQUIRED glib-2.0)
+
 configure_file (
   "${PROJECT_SOURCE_DIR}/src/config.h.in"
   "${PROJECT_BINARY_DIR}/src/config.h"
   )
 
-# TODO: figure out how to run `pkg-config --cflags fuse glib-2.0` from cmake
-set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64  -I/usr/include/fuse -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -Werror -Wall")
+set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64 -Werror -Wall")
 
 set(gdisofs_sources   "${PROJECT_SOURCE_DIR}/src/gdi_file.h"
                     "${PROJECT_SOURCE_DIR}/src/isofs.h"
@@ -41,7 +45,9 @@ set(gdisofs_sources   "${PROJECT_SOURCE_DIR}/src/gdi_file.h"
                     "${PROJECT_SOURCE_DIR}/src/gdi_file.c")
 
 include_directories("${PROJECT_SOURCE_DIR}"
-                    "${PROJECT_BINARY_DIR}/src/")
+                    "${PROJECT_BINARY_DIR}/src/"
+                    "${GLIB_INCLUDE_DIRS}"
+                    "${FUSE_INCLUDE_DIRS}")
 
 add_executable(gdisofs ${gdisofs_sources})
-target_link_libraries(gdisofs glib-2.0 fuse z)
+target_link_libraries(gdisofs ${GLIB_LDFLAGS} ${FUSE_LDFLAGS} z)
