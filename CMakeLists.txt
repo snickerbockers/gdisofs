@@ -1,7 +1,7 @@
 ################################################################################
 #
 #    gdisofs - fuse module for mounting filesystems from Sega Dreamcast GD-ROMs
-#    Copyright (C) 2017, 2018 snickerbockers
+#    Copyright (C) 2017, 2018, 2022 snickerbockers
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ configure_file (
   "${PROJECT_BINARY_DIR}/src/config.h"
   )
 
-set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64 -Werror -Wall")
+set(CMAKE_C_FLAGS "-D_FILE_OFFSET_BITS=64 -Wall")
 
 set(gdisofs_sources   "${PROJECT_SOURCE_DIR}/src/gdi_file.h"
                     "${PROJECT_SOURCE_DIR}/src/isofs.h"
